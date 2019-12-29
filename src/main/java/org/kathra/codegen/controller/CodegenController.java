@@ -24,7 +24,7 @@ package org.kathra.codegen.controller;
 import org.kathra.codegen.ClientOptInput;
 import org.kathra.codegen.KathraGenerator;
 import org.kathra.codegen.config.CodegenConfigurator;
-import org.kathra.codegen.service.TemplatingService;
+import org.kathra.codegen.service.CodegenService;
 import org.kathra.codegen.model.*;
 import org.kathra.utils.KathraException;
 import org.kathra.utils.annotations.Eager;
@@ -53,7 +53,7 @@ import static org.apache.commons.lang3.StringUtils.isNotEmpty;
 @ApplicationScoped
 @Eager
 @ContextName("Codegen")
-public class CodegenController implements TemplatingService {
+public class CodegenController implements CodegenService {
 
     Config config = new Config();
 
@@ -82,7 +82,7 @@ public class CodegenController implements TemplatingService {
                 return generateModel(swaggerFile, "JAVA", name, group, version);
                 case "LIBRARY_JAVA_REST_INTERFACE":
                 return generateInterface(swaggerFile, "JAVA", name, group, version);
-                case "SERVER_JAVA_REST_CAMEL":
+                case "SERVER_JAVA_REST":
                 return generateImplementation(swaggerFile, getValue(codeGenTemplate, "IMPLEMENTATION_NAME"), "JAVA", name, group, version);
                 case "LIBRARY_PYTHON_REST_CLIENT":
                 return generateClient(swaggerFile, "PYTHON", name, group, version);
@@ -90,7 +90,7 @@ public class CodegenController implements TemplatingService {
                 return generateModel(swaggerFile, "PYTHON", name, group, version);
                 case "LIBRARY_PYTHON_REST_INTERFACE":
                 return generateInterface(swaggerFile, "PYTHON", name, group, version);
-                case "SERVER_PYTHON_REST_CAMEL":
+                case "SERVER_PYTHON_REST":
                 return generateImplementation(swaggerFile, getValue(codeGenTemplate, "IMPLEMENTATION_NAME"), "PYTHON", name, group, version);
             }
             throw new IllegalArgumentException("Unknown template");
@@ -98,6 +98,7 @@ public class CodegenController implements TemplatingService {
             swaggerFile.delete();
         }
     }
+    
 
     private String getValue(CodeGenTemplate codeGenTemplate, String key) {
         return codeGenTemplate  .getArguments()
@@ -118,11 +119,11 @@ public class CodegenController implements TemplatingService {
         templates.add(getLibraryTemplate("JAVA", "REST_CLIENT"));
         templates.add(getLibraryTemplate("JAVA", "MODEL"));
         templates.add(getLibraryTemplate("JAVA", "REST_INTERFACE"));
-        templates.add(getLibraryTemplate("JAVA", "REST_CAMEL"));
+        templates.add(getServerTemplate("JAVA", "REST"));
         templates.add(getLibraryTemplate("PYTHON", "REST_CLIENT"));
         templates.add(getLibraryTemplate("PYTHON", "MODEL"));
         templates.add(getLibraryTemplate("PYTHON", "REST_INTERFACE"));
-        templates.add(getLibraryTemplate("PYTHON", "REST_PYTHON"));
+        templates.add(getServerTemplate("PYTHON", "REST"));
         return templates;
     }
 
