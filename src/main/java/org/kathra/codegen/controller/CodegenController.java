@@ -93,7 +93,7 @@ public class CodegenController implements CodegenService {
                 case "SERVER_PYTHON_REST":
                 return generateImplementation(swaggerFile, getValue(codeGenTemplate, "IMPLEMENTATION_NAME"), "PYTHON", name, group, version);
             }
-            throw new IllegalArgumentException("Unknown template");
+            throw new IllegalArgumentException("Unknown template : " +codeGenTemplate.getName());
         } finally {
             swaggerFile.delete();
         }
