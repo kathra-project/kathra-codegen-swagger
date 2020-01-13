@@ -78,7 +78,7 @@ public class CodegenController implements CodegenService {
             switch(codeGenTemplate.getName()) {
                 case "LIBRARY_JAVA_REST_CLIENT":
                 return generateClient(swaggerFile, "JAVA", name, group, version);
-                case "LIBRARY_JAVA_MODEL":
+                case "LIBRARY_JAVA_REST_MODEL":
                 return generateModel(swaggerFile, "JAVA", name, group, version);
                 case "LIBRARY_JAVA_REST_INTERFACE":
                 return generateInterface(swaggerFile, "JAVA", name, group, version);
@@ -86,7 +86,7 @@ public class CodegenController implements CodegenService {
                 return generateImplementation(swaggerFile, getValue(codeGenTemplate, "IMPLEMENTATION_NAME"), "JAVA", name, group, version);
                 case "LIBRARY_PYTHON_REST_CLIENT":
                 return generateClient(swaggerFile, "PYTHON", name, group, version);
-                case "LIBRARY_PYTHON_MODEL":
+                case "LIBRARY_PYTHON_REST_MODEL":
                 return generateModel(swaggerFile, "PYTHON", name, group, version);
                 case "LIBRARY_PYTHON_REST_INTERFACE":
                 return generateInterface(swaggerFile, "PYTHON", name, group, version);
