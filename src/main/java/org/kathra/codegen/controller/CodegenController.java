@@ -25,6 +25,7 @@ import org.kathra.codegen.ClientOptInput;
 import org.kathra.codegen.KathraGenerator;
 import org.kathra.codegen.config.CodegenConfigurator;
 import org.kathra.codegen.service.CodegenService;
+import org.kathra.codegen.model.*;
 import org.kathra.utils.KathraException;
 import org.kathra.utils.annotations.Eager;
 import org.apache.camel.cdi.ContextName;
@@ -41,6 +42,8 @@ import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.util.List;
+import java.util.ArrayList;
 import java.util.LinkedHashMap;
 
 import static java.nio.file.StandardCopyOption.REPLACE_EXISTING;
@@ -54,21 +57,110 @@ public class CodegenController implements CodegenService {
 
     Config config = new Config();
 
+        /**
+    * Generate archive from template
+    * 
+    * @param codeGenTemplate CodeGenTemplate to generate code (required)
+    * @return FileDataSource
+    */
+    public FileDataSource generateFromTemplate(CodeGenTemplate codeGenTemplate) throws Exception {
+        if (codeGenTemplate == null) {
+            throw new IllegalArgumentException("codeGenTemplate is null");
+        }
+
+        final String name = getValue(codeGenTemplate, "NAME");
+        final String group = getValue(codeGenTemplate, "GROUP");
+        final String version = getValue(codeGenTemplate, "VERSION");
+        
+        final File swaggerFile = File.createTempFile(System.getProperty("java.io.tmpdir")+Long.toString(System.nanoTime()),"swagger.yaml");
+        try {
+            FileUtils.writeStringToFile(swaggerFile, getValue(codeGenTemplate, "SWAGGER2_SPEC"));
+            switch(codeGenTemplate.getName()) {
+                case "LIBRARY_JAVA_REST_CLIENT":
+                return generateClient(swaggerFile, "JAVA", name, group, version);
+                case "LIBRARY_JAVA_REST_MODEL":
+                return generateModel(swaggerFile, "JAVA", name, group, version);
+                case "LIBRARY_JAVA_REST_INTERFACE":
+                return generateInterface(swaggerFile, "JAVA", name, group, version);
+                case "SERVER_JAVA_REST":
+                return generateImplementation(swaggerFile, getValue(codeGenTemplate, "IMPLEMENTATION_NAME"), "JAVA", name, group, version);
+                case "LIBRARY_PYTHON_REST_CLIENT":
+                return generateClient(swaggerFile, "PYTHON", name, group, version);
+                case "LIBRARY_PYTHON_REST_MODEL":
+                return generateModel(swaggerFile, "PYTHON", name, group, version);
+                case "LIBRARY_PYTHON_REST_INTERFACE":
+                return generateInterface(swaggerFile, "PYTHON", name, group, version);
+                case "SERVER_PYTHON_REST":
+                return generateImplementation(swaggerFile, getValue(codeGenTemplate, "IMPLEMENTATION_NAME"), "PYTHON", name, group, version);
+            }
+            throw new IllegalArgumentException("Unknown template : " +codeGenTemplate.getName());
+        } finally {
+            swaggerFile.delete();
+        }
+    }
+    
+
+    private String getValue(CodeGenTemplate codeGenTemplate, String key) {
+        return codeGenTemplate  .getArguments()
+                                .stream()
+                                .filter(arg -> key.equals(arg.getKey()))
+                                .findFirst()
+                                .orElseThrow(() -> new IllegalAccessError("Unable to find argument '"+key+"'"))
+                                .getValue();
+    }
+
+    /**
+    * Get all templates for codegen generation
+    * 
+    * @return List<CodeGenTemplate>
+    */
+    public List<CodeGenTemplate> getTemplates() {
+        List<CodeGenTemplate> templates = new ArrayList<>();
+        templates.add(getLibraryTemplate("JAVA", "REST_CLIENT"));
+        templates.add(getLibraryTemplate("JAVA", "MODEL"));
+        templates.add(getLibraryTemplate("JAVA", "REST_INTERFACE"));
+        templates.add(getServerTemplate("JAVA", "REST"));
+        templates.add(getLibraryTemplate("PYTHON", "REST_CLIENT"));
+        templates.add(getLibraryTemplate("PYTHON", "MODEL"));
+        templates.add(getLibraryTemplate("PYTHON", "REST_INTERFACE"));
+        templates.add(getServerTemplate("PYTHON", "REST"));
+        return templates;
+    }
+
+    public CodeGenTemplate getLibraryTemplate(String language, String type) {
+        return new CodeGenTemplate()
+                .name("LIBRARY_"+language+"_"+type)
+                .addArgumentsItem(new CodeGenTemplateArgument().key("GROUP"))
+                .addArgumentsItem(new CodeGenTemplateArgument().key("NAME"))
+                .addArgumentsItem(new CodeGenTemplateArgument().key("VERSION"))
+                .addArgumentsItem(new CodeGenTemplateArgument().key("SWAGGER2_SPEC"));
+    }
+
+    public CodeGenTemplate getServerTemplate(String language, String type) {
+        return new CodeGenTemplate()
+                .name("SERVER_"+language+"_"+type)
+                .addArgumentsItem(new CodeGenTemplateArgument().key("IMPLEMENTATION_NAME"))
+                .addArgumentsItem(new CodeGenTemplateArgument().key("GROUP"))
+                .addArgumentsItem(new CodeGenTemplateArgument().key("NAME"))
+                .addArgumentsItem(new CodeGenTemplateArgument().key("VERSION"))
+                .addArgumentsItem(new CodeGenTemplateArgument().key("SWAGGER2_SPEC"));
+    }
+
     /**
     * Generate Client
     *
-    * @param apiFile The API definition file (required)
+    * @param api The API
     * @param language The desired programming language (required)
     * @param artifactName The name of artifact to generate (optional)
     * @param groupId The groupId of artifact to generate (optional)
     * @param artifactVersion The version of artifact to generate (optional)
     * @return FileDataSource
     */
-    public FileDataSource generateClient(FileDataSource apiFile, String language, String artifactName, String groupId, String artifactVersion) throws Exception {
+    public FileDataSource generateClient(File api, String language, String artifactName, String groupId, String artifactVersion) throws Exception {
         if (language.equalsIgnoreCase("JAVA")) {
-            return generateJava(apiFile.getFile(), artifactName, groupId, artifactVersion, "client", null);
+            return generateJava(api, artifactName, groupId, artifactVersion, "client", null);
         } else if (language.equalsIgnoreCase("PYTHON")) {
-            return generatePython(apiFile.getFile(), artifactName, groupId, artifactVersion, "client", null);
+            return generatePython(api, artifactName, groupId, artifactVersion, "client", null);
         } else {
             return null;
         }
@@ -77,7 +169,7 @@ public class CodegenController implements CodegenService {
     /**
     * Generate Implementation
     *
-    * @param apiFile The API definition file (required)
+    * @param api The API
     * @param implemName The name of artifact to generate (required)
     * @param language The desired programming language (required)
     * @param artifactName The name of artifact to generate (optional)
@@ -85,11 +177,11 @@ public class CodegenController implements CodegenService {
     * @param artifactVersion The version of artifact to generate (optional)
     * @return FileDataSource
     */
-    public FileDataSource generateImplementation(FileDataSource apiFile, String implemName, String language, String artifactName, String groupId, String artifactVersion) throws Exception {
+    public FileDataSource generateImplementation(File api, String implemName, String language, String artifactName, String groupId, String artifactVersion) throws Exception {
         if (language.equalsIgnoreCase("JAVA")) {
-            return generateJava(apiFile.getFile(), artifactName, groupId, artifactVersion, "implem", implemName);
+            return generateJava(api, artifactName, groupId, artifactVersion, "implem", implemName);
         } else if (language.equalsIgnoreCase("PYTHON")) {
-            return generatePythonImpl(apiFile.getFile(), artifactName, groupId, artifactVersion, implemName);
+            return generatePythonImpl(api, artifactName, groupId, artifactVersion, implemName);
         } else {
             return null;
         }
@@ -98,18 +190,18 @@ public class CodegenController implements CodegenService {
     /**
     * Generate Interface
     *
-    * @param apiFile The API definition file (required)
+    * @param api The API definition file (required)
     * @param language The desired programming language (required)
     * @param artifactName The name of artifact to generate (optional)
     * @param groupId The groupId of artifact to generate (optional)
     * @param artifactVersion The version of artifact to generate (optional)
     * @return FileDataSource
     */
-    public FileDataSource generateInterface(FileDataSource apiFile, String language, String artifactName, String groupId, String artifactVersion) throws Exception {
+    public FileDataSource generateInterface(File api, String language, String artifactName, String groupId, String artifactVersion) throws Exception {
         if (language.equalsIgnoreCase("JAVA")) {
-            return generateJava(apiFile.getFile(), artifactName, groupId, artifactVersion, "interface", null);
+            return generateJava(api, artifactName, groupId, artifactVersion, "interface", null);
         } else if (language.equalsIgnoreCase("PYTHON")) {
-            return generatePython(apiFile.getFile(), artifactName, groupId, artifactVersion, "interface", null);
+            return generatePython(api, artifactName, groupId, artifactVersion, "interface", null);
         } else {
             return null;
         }
@@ -118,18 +210,18 @@ public class CodegenController implements CodegenService {
     /**
     * Generate Model
     *
-    * @param apiFile The API definition file (required)
+    * @param api The API definition file (required)
     * @param language The desired programming language (required)
     * @param artifactName The name of artifact to generate (optional)
     * @param groupId The groupId of artifact to generate (optional)
     * @param artifactVersion The version of artifact to generate (optional)
     * @return FileDataSource
     */
-    public FileDataSource generateModel(FileDataSource apiFile, String language, String artifactName, String groupId, String artifactVersion) throws Exception {
+    public FileDataSource generateModel(File api, String language, String artifactName, String groupId, String artifactVersion) throws Exception {
         if (language.equalsIgnoreCase("JAVA")) {
-            return generateJava(apiFile.getFile(), artifactName, groupId, artifactVersion, "model", null);
+            return generateJava(api, artifactName, groupId, artifactVersion, "model", null);
         } else if (language.equalsIgnoreCase("PYTHON")) {
-            return generatePython(apiFile.getFile(), artifactName, groupId, artifactVersion, "model", null);
+            return generatePython(api, artifactName, groupId, artifactVersion, "model", null);
         } else {
             return null;
         }
